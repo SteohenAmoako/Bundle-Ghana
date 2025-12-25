@@ -4,13 +4,15 @@ import React, { useState } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { PlusCircle, Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle, Info } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import PaystackButton from '@/components/paystack-button';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const mockTransactions = [
     { id: 1, type: 'deposit', amount: 50.00, date: '2024-07-27', description: 'Paystack Deposit' },
@@ -19,25 +21,122 @@ const mockTransactions = [
     { id: 4, type: 'deposit', amount: 25.00, date: '2024-07-25', description: 'Paystack Deposit' },
 ];
 
-export default function WalletPage() {
-    const [amount, setAmount] = useState(10);
+function PaystackDepositForm({ userEmail, onDepositSuccess }: { userEmail: string; onDepositSuccess: (details: any) => void; }) {
+    const [amount, setAmount] = useState('');
+    const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const { toast } = useToast();
 
-    // Mock data
-    const userEmail = "customer@example.com";
-
-    const handlePaystackSuccess = (reference: any) => {
-        console.log("Paystack success reference:", reference);
-        // Here you would typically:
-        // 1. Verify the transaction with your backend.
-        // 2. Update the user's wallet balance.
-        // 3. Refresh the transaction list.
-        // For now, we just log and maybe route them somewhere.
-        router.refresh();
+    const handleSuccess = (reference: any) => {
+        console.log('Payment successful!', reference);
+        setLoading(true);
+        try {
+            const paymentDetails = {
+                reference: reference.reference,
+                amount: parseFloat(amount),
+                transactionId: reference.transaction,
+                status: 'success',
+                message: `Successfully deposited ${amount} GHS`
+            };
+            onDepositSuccess(paymentDetails);
+            setAmount('');
+            toast({
+                title: "Deposit Successful!",
+                description: `${amount} GHS has been added to your wallet.`
+            })
+            router.refresh();
+        } catch (error) {
+            console.error('Error processing deposit:', error);
+            toast({
+                title: "Error",
+                description: "There was an error processing your deposit. Please contact support.",
+                variant: "destructive"
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handlePaystackClose = () => {
-        console.log("Paystack dialog closed.");
+    const handleClose = () => {
+        console.log('Payment window closed');
+        setLoading(false);
+    };
+
+    const isValidAmount = () => {
+        const numAmount = parseFloat(amount);
+        return !isNaN(numAmount) && numAmount >= 1 && numAmount <= 1000000;
+    };
+
+    return (
+        <div className="grid gap-6">
+            <div className="grid gap-2">
+                <Label htmlFor="amount">Amount to Deposit (GHS)</Label>
+                <Input
+                    id="amount"
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="Enter amount (min: 1 GHS)"
+                    min="1"
+                    step="0.01"
+                />
+                <p className="text-xs text-muted-foreground">
+                    Minimum deposit: 1 GHS
+                </p>
+            </div>
+
+            {amount && isValidAmount() && (
+                <Alert variant="default" className="bg-success/10 border-success/30">
+                    <AlertTitle className='text-success'>Payment Preview</AlertTitle>
+                    <AlertDescription className="flex justify-between items-center text-foreground">
+                        <span>You will pay:</span>
+                        <span className="font-bold text-lg">GHS {parseFloat(amount).toFixed(2)}</span>
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            <div className="mt-4">
+                {isValidAmount() ? (
+                    <PaystackButton
+                        email={userEmail}
+                        amount={parseFloat(amount)}
+                        onSuccess={handleSuccess}
+                        onClose={handleClose}
+                        buttonProps={{ className: "w-full", disabled: loading }}
+                    >
+                       {loading ? 'Processing...' : 'Deposit Money'}
+                    </PaystackButton>
+                ) : (
+                    <Button disabled className="w-full">
+                        Enter Valid Amount
+                    </Button>
+                )}
+            </div>
+            
+            <Card className="mt-4 bg-muted/50">
+                <CardHeader>
+                    <CardTitle className="text-base">Payment Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <ul className="text-sm text-muted-foreground space-y-2">
+                        <li className='flex items-center gap-2'>✓ Secure payment via Paystack</li>
+                        <li className='flex items-center gap-2'>✓ Accept all major cards & Mobile Money</li>
+                        <li className='flex items-center gap-2'>✓ Instant wallet credit</li>
+                    </ul>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+
+export default function WalletPage() {
+    const [balance, setBalance] = useState(50.00); // Mock balance
+    const userEmail = "customer@example.com"; // Mock user email
+
+    const handleDepositSuccess = (paymentDetails: { amount: number; }) => {
+        console.log('Deposit successful:', paymentDetails);
+        setBalance(prevBalance => prevBalance + paymentDetails.amount);
     };
 
     return (
@@ -57,7 +156,7 @@ export default function WalletPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-4xl font-bold">GHS 50.00</p>
+                            <p className="text-4xl font-bold">GHS {balance.toFixed(2)}</p>
                         </CardContent>
                         <CardFooter>
                             <Dialog>
@@ -73,29 +172,7 @@ export default function WalletPage() {
                                             Enter the amount you want to deposit and proceed to Paystack.
                                         </DialogDescription>
                                     </DialogHeader>
-                                    <div className="grid gap-4 py-4">
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="amount" className="text-right">
-                                                Amount
-                                            </Label>
-                                            <Input 
-                                                id="amount" 
-                                                value={amount}
-                                                onChange={(e) => setAmount(Number(e.target.value))}
-                                                type="number" 
-                                                className="col-span-3" 
-                                            />
-                                        </div>
-                                    </div>
-                                    <PaystackButton
-                                        email={userEmail}
-                                        amount={amount}
-                                        onSuccess={handlePaystackSuccess}
-                                        onClose={handlePaystackClose}
-                                        buttonProps={{ className: "w-full" }}
-                                    >
-                                        Proceed to Paystack
-                                    </PaystackButton>
+                                    <PaystackDepositForm userEmail={userEmail} onDepositSuccess={handleDepositSuccess} />
                                 </DialogContent>
                             </Dialog>
                         </CardFooter>
