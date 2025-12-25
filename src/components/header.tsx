@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { CartIcon } from "@/components/cart-icon";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Wallet } from "lucide-react";
 
 const navLinks = [
@@ -28,6 +28,9 @@ export function Header() {
                             </Button>
                         </SheetTrigger>
                         <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                            <SheetHeader>
+                               <SheetTitle className="sr-only">Menu</SheetTitle>
+                            </SheetHeader>
                             <nav className="flex flex-col gap-4 mt-8">
                                 <Logo />
                                 {navLinks.map((link) => (
