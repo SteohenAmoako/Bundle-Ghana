@@ -14,16 +14,18 @@ NETWORKS.forEach(network => {
 });
 
 export const normalizePhoneNumber = (phone: string): string => {
+  if (!phone) return '';
   let cleaned = phone.replace(/\s+/g, ''); // Remove spaces
-  if (cleaned.startsWith('+')) {
-    cleaned = cleaned.substring(1);
+  if (cleaned.startsWith('+233')) {
+    cleaned = `0${cleaned.substring(4)}`;
+  } else if (cleaned.startsWith('233')) {
+    cleaned = `0${cleaned.substring(3)}`;
   }
-  if (cleaned.startsWith('233')) {
-    return `0${cleaned.substring(3)}`;
+  
+  if (cleaned.length > 10) {
+    return cleaned.substring(0, 10);
   }
-  if (cleaned.length === 9 && (cleaned.startsWith('2') || cleaned.startsWith('5'))) {
-    return `0${cleaned}`;
-  }
+
   return cleaned;
 };
 

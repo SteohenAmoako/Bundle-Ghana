@@ -13,7 +13,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 const FormSchema = z.object({
   phone: z.string().refine(validatePhoneNumber, {
-    message: 'Please enter a valid Ghanaian phone number.',
+    message: 'Please enter a valid 10-digit Ghanaian phone number.',
   }),
 });
 
@@ -35,16 +35,22 @@ export function PhoneInputForm({ onPhoneNumberChange }: PhoneInputFormProps) {
   const phoneValue = form.watch('phone');
 
   useEffect(() => {
-    const network = detectNetwork(phoneValue);
+    const normalized = normalizePhoneNumber(phoneValue);
+    
+    // Update the input field value if it's different
+    if (normalized !== phoneValue) {
+      form.setValue('phone', normalized, { shouldValidate: true });
+    }
+    
+    const network = detectNetwork(normalized);
     setDetectedNetwork(network?.name || null);
     
-    const normalized = normalizePhoneNumber(phoneValue);
-    if(validatePhoneNumber(normalized)) {
+    if (validatePhoneNumber(normalized)) {
         onPhoneNumberChange(normalized, network?.name || null);
     } else {
         onPhoneNumberChange('', null);
     }
-  }, [phoneValue, onPhoneNumberChange]);
+  }, [phoneValue, onPhoneNumberChange, form]);
 
   return (
     <Form {...form}>
@@ -63,6 +69,7 @@ export function PhoneInputForm({ onPhoneNumberChange }: PhoneInputFormProps) {
                     placeholder="e.g., 024 123 4567"
                     className="h-14 rounded-full pl-6 pr-14 text-lg"
                     autoComplete="tel"
+                    maxLength={10}
                   />
                 </FormControl>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 transform">
