@@ -8,7 +8,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { MobileBottomNav } from '@/components/mobile-bottom-nav';
 
 export const metadata: Metadata = {
-  title: 'Bundle Ghana - Affordable Data Bundles',
+  title: 'SB Bundles - Affordable Data Bundles',
   description: 'Purchase MTN, Telecel, and AirtelTigo data bundles in Ghana at the best rates.',
 };
 
