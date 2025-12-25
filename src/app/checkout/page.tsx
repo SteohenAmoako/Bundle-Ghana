@@ -5,16 +5,21 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, Wallet, CreditCard } from "lucide-react";
+import { Info, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import PaystackButton from "@/components/paystack-button";
 
 export default function CheckoutPage() {
     const { cartItems, totalPrice, clearCart } = useCart();
     const router = useRouter();
     const { toast } = useToast();
-    const walletBalance = 50.00; // Mock wallet balance
+    
+    // Mock data - in a real app, this would come from user state/API
+    const userEmail = "customer@example.com";
+    const walletBalance = 50.00; 
+
     const isSufficient = walletBalance >= totalPrice;
 
     const handlePayWithWallet = () => {
@@ -26,6 +31,19 @@ export default function CheckoutPage() {
         clearCart();
         router.push('/orders');
     }
+
+    const handlePaystackSuccess = (reference: any) => {
+        console.log("Paystack success reference:", reference);
+        // Here you would typically:
+        // 1. Verify the transaction with your backend.
+        // 2. Update the user's wallet balance.
+        // 3. Potentially re-try the purchase if that was the flow.
+        router.push('/wallet');
+    };
+
+    const handlePaystackClose = () => {
+        console.log("Paystack dialog closed.");
+    };
 
     return (
         <div className="container mx-auto max-w-3xl px-4 py-8 sm:py-12">
@@ -85,10 +103,14 @@ export default function CheckoutPage() {
                                     <Wallet className="mr-2 h-4 w-4" />
                                     Pay with Wallet (GHS {walletBalance.toFixed(2)})
                                 </Button>
-                                <Button variant="secondary" className="w-full">
-                                    <CreditCard className="mr-2 h-4 w-4" />
-                                    Deposit via Paystack
-                                </Button>
+                                <PaystackButton
+                                    email={userEmail}
+                                    amount={totalPrice}
+                                    onSuccess={handlePaystackSuccess}
+                                    onClose={handlePaystackClose}
+                                    buttonProps={{ variant: "secondary", className: "w-full" }}
+                                >
+                                </PaystackButton>
                             </div>
                         </CardContent>
                     </Card>

@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import PaystackButton from '@/components/paystack-button';
+import { useRouter } from 'next/navigation';
 
 const mockTransactions = [
     { id: 1, type: 'deposit', amount: 50.00, date: '2024-07-27', description: 'Paystack Deposit' },
@@ -17,6 +20,26 @@ const mockTransactions = [
 ];
 
 export default function WalletPage() {
+    const [amount, setAmount] = useState(10);
+    const router = useRouter();
+
+    // Mock data
+    const userEmail = "customer@example.com";
+
+    const handlePaystackSuccess = (reference: any) => {
+        console.log("Paystack success reference:", reference);
+        // Here you would typically:
+        // 1. Verify the transaction with your backend.
+        // 2. Update the user's wallet balance.
+        // 3. Refresh the transaction list.
+        // For now, we just log and maybe route them somewhere.
+        router.refresh();
+    };
+
+    const handlePaystackClose = () => {
+        console.log("Paystack dialog closed.");
+    };
+
     return (
         <div className="container mx-auto max-w-4xl px-4 py-8 sm:py-12">
             <PageHeader
@@ -47,7 +70,7 @@ export default function WalletPage() {
                                     <DialogHeader>
                                         <DialogTitle>Add money to your wallet</DialogTitle>
                                         <DialogDescription>
-                                            Enter the amount you want to deposit. You'll be redirected to Paystack to complete the payment.
+                                            Enter the amount you want to deposit and proceed to Paystack.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <div className="grid gap-4 py-4">
@@ -55,10 +78,24 @@ export default function WalletPage() {
                                             <Label htmlFor="amount" className="text-right">
                                                 Amount
                                             </Label>
-                                            <Input id="amount" defaultValue="10.00" type="number" className="col-span-3" />
+                                            <Input 
+                                                id="amount" 
+                                                value={amount}
+                                                onChange={(e) => setAmount(Number(e.target.value))}
+                                                type="number" 
+                                                className="col-span-3" 
+                                            />
                                         </div>
                                     </div>
-                                    <Button type="submit" className="w-full">Proceed to Paystack</Button>
+                                    <PaystackButton
+                                        email={userEmail}
+                                        amount={amount}
+                                        onSuccess={handlePaystackSuccess}
+                                        onClose={handlePaystackClose}
+                                        buttonProps={{ className: "w-full" }}
+                                    >
+                                        Proceed to Paystack
+                                    </PaystackButton>
                                 </DialogContent>
                             </Dialog>
                         </CardFooter>
