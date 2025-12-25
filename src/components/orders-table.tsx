@@ -14,6 +14,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ArrowUpDown, ChevronDown, Download, RefreshCw } from "lucide-react"
+import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -80,7 +81,7 @@ const columns: ColumnDef<Order>[] = [
         </Button>
       )
     },
-    cell: ({ row }) => <div>{new Date(row.getValue("date")).toLocaleString()}</div>,
+    cell: ({ row }) => <div>{format(new Date(row.getValue("date")), "dd/MM/yyyy, hh:mm:ss a")}</div>,
   },
   {
     accessorKey: "status",
