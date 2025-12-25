@@ -9,7 +9,7 @@ import { Badge } from "./ui/badge";
 export function CartIcon() {
     const { itemCount } = useCart();
     return (
-        <Button asChild variant="ghost" size="icon" className="relative">
+        <Button asChild variant="ghost" size="icon" className="relative hidden md:inline-flex">
             <Link href="/cart">
                 <ShoppingBag className="h-6 w-6" />
                 {itemCount > 0 && (

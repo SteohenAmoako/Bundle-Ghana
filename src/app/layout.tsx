@@ -5,6 +5,7 @@ import { Providers } from '@/components/providers';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { Toaster } from '@/components/ui/toaster';
+import { MobileBottomNav } from '@/components/mobile-bottom-nav';
 
 export const metadata: Metadata = {
   title: 'Bundle Ghana - Affordable Data Bundles',
@@ -32,8 +33,9 @@ export default function RootLayout({
         <Providers>
           <div className="relative flex min-h-dvh flex-col">
             <Header />
-            <main className="flex-1">{children}</main>
+            <main className="flex-1 pb-20 md:pb-0">{children}</main>
             <Footer />
+            <MobileBottomNav />
           </div>
           <Toaster />
         </Providers>
