@@ -4,6 +4,7 @@ import { usePaystackPayment } from 'react-paystack';
 import { Button, type ButtonProps } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { CreditCard } from 'lucide-react';
+import React from 'react';
 
 interface PaystackButtonProps {
     email: string;
@@ -32,7 +33,7 @@ const PaystackButton = ({ email, amount, onSuccess, onClose, buttonProps, childr
 
     const handlePayment = () => {
         if (!config.publicKey) {
-            console.error("Paystack public key is not set. Please set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY in your .env.local file.");
+            console.error("Paystack public key is not set. Please set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY in your .env file.");
             toast({
                 title: "Configuration Error",
                 description: "Payment gateway is not configured. Please contact support.",

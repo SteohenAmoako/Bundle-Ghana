@@ -9,8 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import PaystackButton from '@/components/paystack-button';
-import { useRouter } from 'next/navigation';
+import { usePaystackPayment } from 'react-paystack';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -21,14 +20,21 @@ const mockTransactions = [
     { id: 4, type: 'deposit', amount: 25.00, date: '2024-07-25', description: 'Paystack Deposit' },
 ];
 
-function PaystackDepositForm({ userEmail, onDepositSuccess }: { userEmail: string; onDepositSuccess: (details: any) => void; }) {
+
+interface PaystackDepositFormProps {
+    userEmail: string;
+    onSuccess: (details: any) => void;
+    currentBalance: number;
+}
+
+function PaystackDepositForm({ userEmail, onSuccess, currentBalance }: PaystackDepositFormProps) {
     const [amount, setAmount] = useState('');
     const [loading, setLoading] = useState(false);
-    const router = useRouter();
     const { toast } = useToast();
 
-    const handleSuccess = (reference: any) => {
-        console.log('Payment successful!', reference);
+    const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
+
+    const handlePaymentSuccess = (reference: any) => {
         setLoading(true);
         try {
             const paymentDetails = {
@@ -38,13 +44,12 @@ function PaystackDepositForm({ userEmail, onDepositSuccess }: { userEmail: strin
                 status: 'success',
                 message: `Successfully deposited ${amount} GHS`
             };
-            onDepositSuccess(paymentDetails);
+            onSuccess(paymentDetails);
             setAmount('');
             toast({
                 title: "Deposit Successful!",
                 description: `${amount} GHS has been added to your wallet.`
-            })
-            router.refresh();
+            });
         } catch (error) {
             console.error('Error processing deposit:', error);
             toast({
@@ -58,8 +63,30 @@ function PaystackDepositForm({ userEmail, onDepositSuccess }: { userEmail: strin
     };
 
     const handleClose = () => {
-        console.log('Payment window closed');
         setLoading(false);
+    };
+
+    const config = {
+        reference: (new Date()).getTime().toString(),
+        email: userEmail,
+        amount: Math.round(parseFloat(amount || '0') * 100), // amount in pesewas
+        publicKey,
+        currency: 'GHS',
+    };
+
+    const initializePayment = usePaystackPayment(config);
+
+    const triggerPayment = () => {
+        if (!publicKey) {
+            toast({
+                title: "Configuration Error",
+                description: "Payment gateway is not configured. Please contact support.",
+                variant: "destructive"
+            });
+            return;
+        }
+        setLoading(true);
+        initializePayment({ onSuccess: handlePaymentSuccess, onClose: handleClose });
     };
 
     const isValidAmount = () => {
@@ -69,6 +96,17 @@ function PaystackDepositForm({ userEmail, onDepositSuccess }: { userEmail: strin
 
     return (
         <div className="grid gap-6">
+            <Card className="bg-accent/10 border-accent/30">
+                <CardHeader>
+                    <CardTitle className='text-accent'>Current Balance</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-3xl font-bold text-accent">
+                        GHS {currentBalance?.toFixed(2) || '0.00'}
+                    </p>
+                </CardContent>
+            </Card>
+
             <div className="grid gap-2">
                 <Label htmlFor="amount">Amount to Deposit (GHS)</Label>
                 <Input
@@ -96,21 +134,13 @@ function PaystackDepositForm({ userEmail, onDepositSuccess }: { userEmail: strin
             )}
 
             <div className="mt-4">
-                {isValidAmount() ? (
-                    <PaystackButton
-                        email={userEmail}
-                        amount={parseFloat(amount)}
-                        onSuccess={handleSuccess}
-                        onClose={handleClose}
-                        buttonProps={{ className: "w-full", disabled: loading }}
-                    >
-                       {loading ? 'Processing...' : 'Deposit Money'}
-                    </PaystackButton>
-                ) : (
-                    <Button disabled className="w-full">
-                        Enter Valid Amount
-                    </Button>
-                )}
+                <Button
+                    onClick={triggerPayment}
+                    disabled={!isValidAmount() || loading}
+                    className="w-full"
+                >
+                    {loading ? 'Processing...' : 'Deposit Money'}
+                </Button>
             </div>
             
             <Card className="mt-4 bg-muted/50">
@@ -129,13 +159,11 @@ function PaystackDepositForm({ userEmail, onDepositSuccess }: { userEmail: strin
     );
 }
 
-
 export default function WalletPage() {
-    const [balance, setBalance] = useState(50.00); // Mock balance
-    const userEmail = "customer@example.com"; // Mock user email
+    const [balance, setBalance] = useState(50.00);
+    const userEmail = "customer@example.com";
 
     const handleDepositSuccess = (paymentDetails: { amount: number; }) => {
-        console.log('Deposit successful:', paymentDetails);
         setBalance(prevBalance => prevBalance + paymentDetails.amount);
     };
 
@@ -165,14 +193,18 @@ export default function WalletPage() {
                                         <PlusCircle className="mr-2 h-4 w-4" /> Add Money
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-[425px]">
+                                <DialogContent className="sm:max-w-md">
                                     <DialogHeader>
-                                        <DialogTitle>Add money to your wallet</DialogTitle>
+                                        <DialogTitle>Add Money to Your Wallet</DialogTitle>
                                         <DialogDescription>
-                                            Enter the amount you want to deposit and proceed to Paystack.
+                                            Enter an amount and complete the payment to top up your balance.
                                         </DialogDescription>
                                     </DialogHeader>
-                                    <PaystackDepositForm userEmail={userEmail} onDepositSuccess={handleDepositSuccess} />
+                                    <PaystackDepositForm 
+                                        userEmail={userEmail} 
+                                        onSuccess={handleDepositSuccess}
+                                        currentBalance={balance}
+                                    />
                                 </DialogContent>
                             </Dialog>
                         </CardFooter>
