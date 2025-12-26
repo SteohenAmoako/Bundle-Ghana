@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -49,8 +50,8 @@ function PaystackDepositForm({ userEmail, onSuccess, onCancel, currentBalance }:
     
     const handleClose = useCallback(() => {
         console.log('Paystack dialog closed by user.');
-        // onCancel is called from the component props
-    }, []);
+        onCancel();
+    }, [onCancel]);
 
     const config = useMemo(() => ({
         email: userEmail,
@@ -292,3 +293,5 @@ export default function WalletPage() {
         </div>
     );
 }
+
+    
