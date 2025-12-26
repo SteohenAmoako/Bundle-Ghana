@@ -25,7 +25,28 @@ export interface CartItem {
   dataAmount: string;
 }
 
-export interface Order {
+// This type now matches the `transactions` table in your SQL schema.
+export interface Transaction {
+    id: string;
+    user_id: string;
+    transaction_code: string | null;
+    transaction_type: string;
+    recipient_msisdn: string | null;
+    network_id: number | null;
+    shared_bundle: number | null;
+    bundle_amount: string | null;
+    amount: number;
+    status: string;
+    description: string | null;
+    balance_before: number | null;
+    balance_after: number | null;
+    created_at: string;
+}
+
+/**
+ * @deprecated The Order type is deprecated. Use Transaction instead.
+ */
+export type Order = {
     id: string;
     transactionCode: string;
     recipientMsisdn: string;
@@ -34,4 +55,4 @@ export interface Order {
     price: number;
     date: string;
     status: 'Completed' | 'Failed';
-}
+};

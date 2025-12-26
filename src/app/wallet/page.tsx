@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState }from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,20 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { usePaystackPayment } from 'react-paystack';
+import { usePaystackPayment, PaystackButton } from 'react-paystack';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/auth-context';
 import { supabase } from '@/lib/supabase/client';
-import type { Order } from '@/lib/definitions';
-import { useEffect } from 'react';
-
-const mockTransactions = [
-    { id: 1, type: 'deposit', amount: 50.00, date: '2024-07-27', description: 'Paystack Deposit' },
-    { id: 2, type: 'purchase', amount: -10.00, date: '2024-07-27', description: 'MTN 1GB Bundle' },
-    { id: 3, type: 'purchase', amount: -20.00, date: '2024-07-26', description: 'Telecel 3GB Bundle' },
-    { id: 4, type: 'deposit', amount: 25.00, date: '2024-07-25', description: 'Paystack Deposit' },
-];
+import type { Transaction } from '@/lib/definitions';
 
 
 interface PaystackDepositFormProps {
@@ -39,16 +31,6 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
 
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
     const amountInPesewas = Math.round(parseFloat(amount || '0') * 100);
-
-    const config = {
-        reference: (new Date()).getTime().toString(),
-        email: userEmail,
-        amount: amountInPesewas,
-        publicKey,
-        currency: 'GHS',
-    };
-
-    const initializePayment = usePaystackPayment(config);
 
     const handlePaymentSuccess = (reference: any) => {
         try {
@@ -75,14 +57,19 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
             });
         }
     };
-
+    
     const handleClose = () => {
         // This is called when the Paystack modal is closed
     };
-    
+
     const componentProps = {
+        email: userEmail,
+        amount: amountInPesewas,
+        publicKey: publicKey,
+        text: "Deposit Money",
         onSuccess: handlePaymentSuccess,
         onClose: handleClose,
+        currency: 'GHS',
     };
 
     const isValidAmount = () => {
@@ -143,9 +130,7 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
 
             <div className="mt-4">
                  {isValidAmount() ? (
-                    <Button onClick={() => initializePayment(componentProps)} className="w-full">
-                        Deposit Money
-                    </Button>
+                    <PaystackButton {...componentProps} className={cn(buttonVariants(), "w-full")} />
                 ) : (
                     <Button disabled className="w-full">
                         Enter a valid amount
@@ -170,12 +155,13 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
 }
 
 export default function WalletPage() {
-    const { user, loading } = useAuth();
+    const { user, loading, refreshUser } = useAuth();
     const [balance, setBalance] = useState(0.00);
-    const [transactions, setTransactions] = useState<Order[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const { toast } = useToast();
 
-    const fetchWalletData = async () => {
+    const fetchWalletData = useCallback(async () => {
         if (!user) return;
 
         // Fetch wallet balance
@@ -187,6 +173,7 @@ export default function WalletPage() {
 
         if (profileError) {
             console.error('Error fetching wallet balance:', profileError);
+            toast({ title: 'Error', description: 'Could not fetch wallet balance.', variant: 'destructive'});
         } else {
             setBalance(profile.wallet_balance);
         }
@@ -201,25 +188,17 @@ export default function WalletPage() {
         
         if (transactionsError) {
             console.error('Error fetching transactions:', transactionsError);
+            toast({ title: 'Error', description: 'Could not fetch transaction history.', variant: 'destructive'});
         } else {
-            // This is a temporary mapping, you'll need to adjust your UI or data structure
-            const mappedTransactions: Order[] = transactionsData.map((tx: any) => ({
-                id: tx.id,
-                transactionCode: tx.transaction_code || tx.id.slice(0, 8),
-                recipientMsisdn: tx.recipient_msisdn || 'N/A',
-                network: tx.network_id === 1 ? 'MTN' : tx.network_id === 2 ? 'Telecel' : 'AirtelTigo',
-                bundle: tx.bundle_amount || tx.transaction_type,
-                price: tx.amount,
-                date: tx.created_at,
-                status: tx.status === 'success' ? 'Completed' : 'Failed',
-            }));
-            setTransactions(mappedTransactions);
+            setTransactions(transactionsData);
         }
-    };
+    }, [user, toast]);
     
     useEffect(() => {
-        fetchWalletData();
-    }, [user]);
+        if (user) {
+            fetchWalletData();
+        }
+    }, [user, fetchWalletData]);
 
 
     const handleDepositSuccess = async (paymentDetails: { amount: number, reference: string }) => {
@@ -236,9 +215,12 @@ export default function WalletPage() {
 
         if (error) {
             console.error('Error updating balance:', error);
+            toast({ title: 'Error', description: 'Failed to update wallet balance.', variant: 'destructive'});
         } else {
             // Re-fetch wallet data to get updated balance and transactions
             await fetchWalletData();
+            // Also refresh user context if it holds balance info
+            if(refreshUser) refreshUser(); 
         }
     };
 
@@ -313,20 +295,20 @@ export default function WalletPage() {
                                 {transactions.length > 0 ? transactions.map((tx) => (
                                     <div key={tx.id} className="flex items-center py-4">
                                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                                            {tx.bundle === 'deposit' ? 
+                                            {tx.transaction_type === 'deposit' ? 
                                                 <ArrowDownCircle className="h-5 w-5 text-success" /> : 
                                                 <ArrowUpCircle className="h-5 w-5 text-destructive" />
                                             }
                                         </div>
                                         <div className="ml-4 flex-grow">
-                                            <p className="font-semibold">{tx.bundle === 'deposit' ? 'Wallet Deposit' : tx.bundle}</p>
-                                            <p className="text-sm text-muted-foreground">{new Date(tx.date).toLocaleString()}</p>
+                                            <p className="font-semibold capitalize">{tx.description}</p>
+                                            <p className="text-sm text-muted-foreground">{new Date(tx.created_at).toLocaleString()}</p>
                                         </div>
                                         <p className={cn(
                                             "font-semibold",
-                                            tx.bundle === 'deposit' ? 'text-success' : 'text-destructive'
+                                            tx.amount > 0 ? 'text-success' : 'text-destructive'
                                         )}>
-                                            {tx.bundle === 'deposit' ? `+${tx.price.toFixed(2)}` : `-${tx.price.toFixed(2)}`}
+                                            {tx.amount > 0 ? `+${Number(tx.amount).toFixed(2)}` : `${Number(tx.amount).toFixed(2)}`}
                                         </p>
                                     </div>
                                 )) : (

@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { AuthComponents } from "./auth-components";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
 
 const navLinks = [
   { href: "/", label: "Buy Data" },
@@ -99,6 +101,23 @@ function UserNav() {
   );
 }
 
+function WalletBalance() {
+    const { user, userProfile } = useAuth();
+    
+    if (!user) return null;
+
+    return (
+         <Button variant="ghost" className="p-0 h-auto" asChild>
+            <Link href="/wallet" className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-muted-foreground" />
+                <span className="font-semibold text-sm">
+                    GHS {userProfile?.wallet_balance?.toFixed(2) ?? '0.00'}
+                </span>
+            </Link>
+        </Button>
+    )
+}
+
 export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -154,12 +173,7 @@ export function Header() {
           </nav>
           <div className="flex items-center gap-4 ml-auto md:ml-0 flex-none">
             <AuthComponents>
-              <Button variant="ghost" className="p-0 h-auto" asChild>
-                <Link href="/wallet" className="flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-semibold text-sm">GHS 50.00</span>
-                </Link>
-              </Button>
+              <WalletBalance />
               <CartIcon />
             </AuthComponents>
             <UserNav />
