@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { PaystackButton } from 'react-paystack';
+import { PaystackButton as ReactPaystackButton } from 'react-paystack';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/auth-context';
@@ -27,10 +26,14 @@ interface PaystackDepositFormProps {
 function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDialog }: PaystackDepositFormProps) {
     const [amount, setAmount] = useState('');
     const { toast } = useToast();
+    const processingRef = useRef(false);
 
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
 
     const handlePaymentSuccess = useCallback((reference: any) => {
+        if (processingRef.current) return;
+        processingRef.current = true;
+
         try {
             const paymentDetails = {
                 reference: reference.reference,
@@ -42,7 +45,12 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
                 title: "Deposit Successful!",
                 description: `${amount} GHS has been added to your wallet.`
             });
+            
             onCloseDialog();
+            
+            setTimeout(() => {
+                processingRef.current = false;
+            }, 2000);
         } catch (error) {
             console.error('Error processing deposit:', error);
             toast({
@@ -50,16 +58,18 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
                 description: "There was an error processing your deposit. Please contact support.",
                 variant: "destructive"
             });
+            processingRef.current = false;
         }
     }, [amount, onSuccess, onCloseDialog, toast]);
     
     const handleClose = useCallback(() => {
         console.log('Paystack dialog closed.');
+        processingRef.current = false;
     }, []);
 
     const componentProps = useMemo(() => ({
         email: userEmail,
-        amount: Math.round(parseFloat(amount || '0') * 100), // amount in pesewas
+        amount: Math.round(parseFloat(amount || '0') * 100),
         publicKey,
         text: "Deposit Money",
         onSuccess: (ref: any) => handlePaymentSuccess(ref),
@@ -125,7 +135,7 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
 
             <div className="mt-4">
                  {isValidAmount() ? (
-                    <PaystackButton {...componentProps} className={cn(buttonVariants(), "w-full")} />
+                    <ReactPaystackButton {...componentProps} className={cn(buttonVariants(), "w-full")} />
                 ) : (
                     <Button disabled className="w-full">
                         Enter a valid amount
@@ -200,6 +210,10 @@ export default function WalletPage() {
         }
     };
 
+    const handleCloseDialog = useCallback(() => {
+        setIsDialogOpen(false);
+    }, []);
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -253,7 +267,7 @@ export default function WalletPage() {
                                         userEmail={user.email!} 
                                         onSuccess={handleDepositSuccess}
                                         currentBalance={userProfile?.wallet_balance || 0}
-                                        onCloseDialog={() => setIsDialogOpen(false)}
+                                        onCloseDialog={handleCloseDialog}
                                     />
                                 </DialogContent>
                             </Dialog>
