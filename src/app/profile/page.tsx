@@ -32,8 +32,10 @@ export default function ProfilePage() {
     );
   }
 
+  const displayName = user.user_metadata.full_name || "User";
+
   const userInitials =
-    user.displayName
+    displayName
       ?.split(" ")
       .map((n) => n[0])
       .join("") ||
@@ -52,11 +54,11 @@ export default function ProfilePage() {
           <CardHeader>
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20">
-                <AvatarImage src={user.photoURL || ""} alt={user.displayName || ""} />
+                <AvatarImage src={user.user_metadata.avatar_url || ""} alt={displayName} />
                 <AvatarFallback>{userInitials}</AvatarFallback>
               </Avatar>
               <div>
-                <CardTitle className="text-3xl">{user.displayName || "User"}</CardTitle>
+                <CardTitle className="text-3xl">{displayName}</CardTitle>
                 <CardDescription>{user.email}</CardDescription>
               </div>
             </div>

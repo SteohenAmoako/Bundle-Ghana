@@ -50,8 +50,9 @@ function UserNav() {
     );
   }
 
+  const displayName = user.user_metadata.full_name || "User";
   const userInitials =
-    user.displayName
+    displayName
       ?.split(" ")
       .map((n) => n[0])
       .join("") || user.email?.[0].toUpperCase() || "U";
@@ -61,7 +62,7 @@ function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={user.photoURL || ""} alt={user.displayName || ""} />
+            <AvatarImage src={user.user_metadata.avatar_url || ""} alt={displayName} />
             <AvatarFallback>{userInitials}</AvatarFallback>
           </Avatar>
         </Button>
@@ -69,7 +70,7 @@ function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.displayName}</p>
+            <p className="text-sm font-medium leading-none">{displayName}</p>
             <p className="text-xs leading-none text-muted-foreground">
               {user.email}
             </p>

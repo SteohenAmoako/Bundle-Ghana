@@ -26,11 +26,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getAuth, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { app } from "@/firebase/config";
+import { supabase } from "@/lib/supabase/client";
 
-const auth = getAuth(app);
 
 const passwordValidation = new RegExp(
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
@@ -76,13 +74,22 @@ export default function SignupPage() {
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     setLoading(true);
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-        await updateProfile(userCredential.user, {
-            displayName: data.fullName,
+        const { data: signUpData, error } = await supabase.auth.signUp({
+            email: data.email,
+            password: data.password,
+            options: {
+                data: {
+                    full_name: data.fullName,
+                    phone_number: data.phone,
+                }
+            }
         });
 
-      // You might want to store phone number in Firestore database
-      // as Firebase Auth doesn't have a default field for it besides phone auth.
+        if (error) {
+            throw error;
+        }
+
+        // The onAuthStateChange listener in AuthProvider will handle the session.
 
       toast({
         title: "Account Created",
@@ -94,9 +101,7 @@ export default function SignupPage() {
         toast({
             variant: "destructive",
             title: "Sign up Failed",
-            description: error.code === 'auth/email-already-in-use' 
-                ? "This email is already registered. Please login instead."
-                : "An error occurred. Please try again.",
+            description: error.message || "An error occurred. Please try again.",
         });
     } finally {
         setLoading(false);
