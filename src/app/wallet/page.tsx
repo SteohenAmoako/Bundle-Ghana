@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { usePaystackPayment, PaystackButton } from 'react-paystack';
+import { PaystackButton } from 'react-paystack';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/auth-context';
 import { supabase } from '@/lib/supabase/client';
 import type { Transaction } from '@/lib/definitions';
-
 
 interface PaystackDepositFormProps {
     userEmail: string;
@@ -30,16 +29,12 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
     const { toast } = useToast();
 
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
-    const amountInPesewas = Math.round(parseFloat(amount || '0') * 100);
 
-    const handlePaymentSuccess = (reference: any) => {
+    const handlePaymentSuccess = useCallback((reference: any) => {
         try {
             const paymentDetails = {
                 reference: reference.reference,
                 amount: parseFloat(amount),
-                transactionId: reference.transaction,
-                status: 'success',
-                message: `Successfully deposited ${amount} GHS`
             };
             onSuccess(paymentDetails);
             setAmount('');
@@ -47,7 +42,7 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
                 title: "Deposit Successful!",
                 description: `${amount} GHS has been added to your wallet.`
             });
-            onCloseDialog(); // Close dialog on success
+            onCloseDialog();
         } catch (error) {
             console.error('Error processing deposit:', error);
             toast({
@@ -56,25 +51,25 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
                 variant: "destructive"
             });
         }
-    };
+    }, [amount, onSuccess, onCloseDialog, toast]);
     
-    const handleClose = () => {
-        // This is called when the Paystack modal is closed
-    };
+    const handleClose = useCallback(() => {
+        console.log('Paystack dialog closed.');
+    }, []);
 
-    const componentProps = {
+    const componentProps = useMemo(() => ({
         email: userEmail,
-        amount: amountInPesewas,
-        publicKey: publicKey,
+        amount: Math.round(parseFloat(amount || '0') * 100), // amount in pesewas
+        publicKey,
         text: "Deposit Money",
-        onSuccess: handlePaymentSuccess,
+        onSuccess: (ref: any) => handlePaymentSuccess(ref),
         onClose: handleClose,
         currency: 'GHS',
-    };
+    }), [userEmail, amount, publicKey, handlePaymentSuccess, handleClose]);
 
     const isValidAmount = () => {
         const numAmount = parseFloat(amount);
-        return !isNaN(numAmount) && numAmount >= 1 && numAmount <= 1000000;
+        return !isNaN(numAmount) && numAmount >= 1;
     };
 
     if (!publicKey) {
@@ -155,30 +150,14 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
 }
 
 export default function WalletPage() {
-    const { user, loading, refreshUser } = useAuth();
-    const [balance, setBalance] = useState(0.00);
+    const { user, loading, refreshUser, userProfile } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const { toast } = useToast();
 
-    const fetchWalletData = useCallback(async () => {
+    const fetchTransactions = useCallback(async () => {
         if (!user) return;
-
-        // Fetch wallet balance
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('wallet_balance')
-            .eq('id', user.id)
-            .single();
-
-        if (profileError) {
-            console.error('Error fetching wallet balance:', profileError);
-            toast({ title: 'Error', description: 'Could not fetch wallet balance.', variant: 'destructive'});
-        } else {
-            setBalance(profile.wallet_balance);
-        }
-
-        // Fetch transactions
+        
         const { data: transactionsData, error: transactionsError } = await supabase
             .from('transactions')
             .select('*')
@@ -190,16 +169,15 @@ export default function WalletPage() {
             console.error('Error fetching transactions:', transactionsError);
             toast({ title: 'Error', description: 'Could not fetch transaction history.', variant: 'destructive'});
         } else {
-            setTransactions(transactionsData);
+            setTransactions(transactionsData || []);
         }
     }, [user, toast]);
     
     useEffect(() => {
         if (user) {
-            fetchWalletData();
+            fetchTransactions();
         }
-    }, [user, fetchWalletData]);
-
+    }, [user, fetchTransactions]);
 
     const handleDepositSuccess = async (paymentDetails: { amount: number, reference: string }) => {
         if (!user) return;
@@ -217,10 +195,8 @@ export default function WalletPage() {
             console.error('Error updating balance:', error);
             toast({ title: 'Error', description: 'Failed to update wallet balance.', variant: 'destructive'});
         } else {
-            // Re-fetch wallet data to get updated balance and transactions
-            await fetchWalletData();
-            // Also refresh user context if it holds balance info
-            if(refreshUser) refreshUser(); 
+            if(refreshUser) refreshUser();
+            fetchTransactions();
         }
     };
 
@@ -257,7 +233,7 @@ export default function WalletPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-4xl font-bold">GHS {balance.toFixed(2)}</p>
+                            <p className="text-4xl font-bold">GHS {userProfile?.wallet_balance?.toFixed(2) || '0.00'}</p>
                         </CardContent>
                         <CardFooter>
                             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -276,7 +252,7 @@ export default function WalletPage() {
                                     <PaystackDepositForm 
                                         userEmail={user.email!} 
                                         onSuccess={handleDepositSuccess}
-                                        currentBalance={balance}
+                                        currentBalance={userProfile?.wallet_balance || 0}
                                         onCloseDialog={() => setIsDialogOpen(false)}
                                     />
                                 </DialogContent>
@@ -301,7 +277,7 @@ export default function WalletPage() {
                                             }
                                         </div>
                                         <div className="ml-4 flex-grow">
-                                            <p className="font-semibold capitalize">{tx.description}</p>
+                                            <p className="font-semibold capitalize">{tx.description || tx.transaction_type}</p>
                                             <p className="text-sm text-muted-foreground">{new Date(tx.created_at).toLocaleString()}</p>
                                         </div>
                                         <p className={cn(
