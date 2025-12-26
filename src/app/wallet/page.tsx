@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState }from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { PaystackButton } from 'react-paystack';
+import { usePaystackPayment } from 'react-paystack';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useAuth } from '@/context/auth-context';
+import { supabase } from '@/lib/supabase/client';
+import type { Order } from '@/lib/definitions';
+import { useEffect } from 'react';
 
 const mockTransactions = [
     { id: 1, type: 'deposit', amount: 50.00, date: '2024-07-27', description: 'Paystack Deposit' },
@@ -34,6 +39,16 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
 
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
     const amountInPesewas = Math.round(parseFloat(amount || '0') * 100);
+
+    const config = {
+        reference: (new Date()).getTime().toString(),
+        email: userEmail,
+        amount: amountInPesewas,
+        publicKey,
+        currency: 'GHS',
+    };
+
+    const initializePayment = usePaystackPayment(config);
 
     const handlePaymentSuccess = (reference: any) => {
         try {
@@ -66,12 +81,6 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
     };
     
     const componentProps = {
-        reference: (new Date()).getTime().toString(),
-        email: userEmail,
-        amount: amountInPesewas,
-        publicKey,
-        currency: 'GHS',
-        text: 'Deposit Money',
         onSuccess: handlePaymentSuccess,
         onClose: handleClose,
     };
@@ -134,7 +143,9 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
 
             <div className="mt-4">
                  {isValidAmount() ? (
-                    <PaystackButton {...componentProps} className={cn(buttonVariants(), "w-full")} />
+                    <Button onClick={() => initializePayment(componentProps)} className="w-full">
+                        Deposit Money
+                    </Button>
                 ) : (
                     <Button disabled className="w-full">
                         Enter a valid amount
@@ -159,13 +170,93 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
 }
 
 export default function WalletPage() {
-    const [balance, setBalance] = useState(50.00);
+    const { user, loading } = useAuth();
+    const [balance, setBalance] = useState(0.00);
+    const [transactions, setTransactions] = useState<Order[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const userEmail = "customer@example.com";
 
-    const handleDepositSuccess = (paymentDetails: { amount: number; }) => {
-        setBalance(prevBalance => prevBalance + paymentDetails.amount);
+    const fetchWalletData = async () => {
+        if (!user) return;
+
+        // Fetch wallet balance
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('wallet_balance')
+            .eq('id', user.id)
+            .single();
+
+        if (profileError) {
+            console.error('Error fetching wallet balance:', profileError);
+        } else {
+            setBalance(profile.wallet_balance);
+        }
+
+        // Fetch transactions
+        const { data: transactionsData, error: transactionsError } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(10);
+        
+        if (transactionsError) {
+            console.error('Error fetching transactions:', transactionsError);
+        } else {
+            // This is a temporary mapping, you'll need to adjust your UI or data structure
+            const mappedTransactions: Order[] = transactionsData.map((tx: any) => ({
+                id: tx.id,
+                transactionCode: tx.transaction_code || tx.id.slice(0, 8),
+                recipientMsisdn: tx.recipient_msisdn || 'N/A',
+                network: tx.network_id === 1 ? 'MTN' : tx.network_id === 2 ? 'Telecel' : 'AirtelTigo',
+                bundle: tx.bundle_amount || tx.transaction_type,
+                price: tx.amount,
+                date: tx.created_at,
+                status: tx.status === 'success' ? 'Completed' : 'Failed',
+            }));
+            setTransactions(mappedTransactions);
+        }
     };
+    
+    useEffect(() => {
+        fetchWalletData();
+    }, [user]);
+
+
+    const handleDepositSuccess = async (paymentDetails: { amount: number, reference: string }) => {
+        if (!user) return;
+
+        const { error } = await supabase.rpc('add_to_wallet_and_log_transaction', {
+            p_user_id: user.id,
+            p_amount: paymentDetails.amount,
+            p_transaction_type: 'deposit',
+            p_status: 'success',
+            p_transaction_code: paymentDetails.reference,
+            p_description: `Paystack Deposit: ${paymentDetails.reference}`
+        });
+
+        if (error) {
+            console.error('Error updating balance:', error);
+        } else {
+            // Re-fetch wallet data to get updated balance and transactions
+            await fetchWalletData();
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div>Loading...</div>
+            </div>
+        );
+    }
+
+    if (!user) {
+         return (
+            <div className="flex justify-center items-center h-screen">
+                <div>Please log in to view your wallet.</div>
+            </div>
+        );
+    }
 
     return (
         <div className="container mx-auto max-w-4xl px-4 py-8 sm:py-12">
@@ -201,7 +292,7 @@ export default function WalletPage() {
                                         </DialogDescription>
                                     </DialogHeader>
                                     <PaystackDepositForm 
-                                        userEmail={userEmail} 
+                                        userEmail={user.email!} 
                                         onSuccess={handleDepositSuccess}
                                         currentBalance={balance}
                                         onCloseDialog={() => setIsDialogOpen(false)}
@@ -219,26 +310,28 @@ export default function WalletPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="divide-y divide-border">
-                                {mockTransactions.map((tx) => (
+                                {transactions.length > 0 ? transactions.map((tx) => (
                                     <div key={tx.id} className="flex items-center py-4">
                                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                                            {tx.amount > 0 ? 
+                                            {tx.bundle === 'deposit' ? 
                                                 <ArrowDownCircle className="h-5 w-5 text-success" /> : 
                                                 <ArrowUpCircle className="h-5 w-5 text-destructive" />
                                             }
                                         </div>
                                         <div className="ml-4 flex-grow">
-                                            <p className="font-semibold">{tx.description}</p>
-                                            <p className="text-sm text-muted-foreground">{tx.date}</p>
+                                            <p className="font-semibold">{tx.bundle === 'deposit' ? 'Wallet Deposit' : tx.bundle}</p>
+                                            <p className="text-sm text-muted-foreground">{new Date(tx.date).toLocaleString()}</p>
                                         </div>
                                         <p className={cn(
                                             "font-semibold",
-                                            tx.amount > 0 ? 'text-success' : 'text-destructive'
+                                            tx.bundle === 'deposit' ? 'text-success' : 'text-destructive'
                                         )}>
-                                            {tx.amount > 0 ? `+${tx.amount.toFixed(2)}` : tx.amount.toFixed(2)}
+                                            {tx.bundle === 'deposit' ? `+${tx.price.toFixed(2)}` : `-${tx.price.toFixed(2)}`}
                                         </p>
                                     </div>
-                                ))}
+                                )) : (
+                                    <p className="text-center text-muted-foreground py-8">No transactions yet.</p>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
