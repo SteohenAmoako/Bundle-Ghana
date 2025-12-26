@@ -20,15 +20,25 @@ import { AnimatePresence, motion } from "framer-motion";
 interface PaystackDepositFormProps {
     userEmail: string;
     onSuccess: (details: any) => void;
-    onCancel: () => void;
+    onClose: () => void;
     currentBalance: number;
 }
 
-function PaystackDepositForm({ userEmail, onSuccess, onCancel, currentBalance }: PaystackDepositFormProps) {
+function PaystackDepositForm({ userEmail, onSuccess, onClose }: PaystackDepositFormProps) {
     const [amount, setAmount] = useState('');
     const { toast } = useToast();
 
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
+
+    const config = useMemo(() => ({
+        email: userEmail,
+        amount: Math.round(parseFloat(amount || '0') * 100),
+        publicKey,
+        currency: 'GHS',
+        reference: (new Date()).getTime().toString(),
+    }), [userEmail, amount, publicKey]);
+
+    const initializePayment = usePaystackPayment(config);
 
     const handlePaymentSuccess = useCallback((reference: any) => {
         try {
@@ -47,20 +57,6 @@ function PaystackDepositForm({ userEmail, onSuccess, onCancel, currentBalance }:
             });
         }
     }, [amount, onSuccess, toast]);
-    
-    const handleClose = useCallback(() => {
-        console.log('Paystack dialog closed by user.');
-        onCancel();
-    }, [onCancel]);
-
-    const config = useMemo(() => ({
-        email: userEmail,
-        amount: Math.round(parseFloat(amount || '0') * 100),
-        publicKey,
-        currency: 'GHS',
-    }), [userEmail, amount, publicKey]);
-
-    const initializePayment = usePaystackPayment(config);
 
     const isValidAmount = () => {
         const numAmount = parseFloat(amount);
@@ -90,7 +86,7 @@ function PaystackDepositForm({ userEmail, onSuccess, onCancel, currentBalance }:
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <CardTitle>Add Money to Wallet</CardTitle>
-                        <Button variant="ghost" size="icon" onClick={onCancel}>
+                        <Button variant="ghost" size="icon" onClick={onClose}>
                             <X className="h-4 w-4" />
                         </Button>
                     </div>
@@ -124,7 +120,7 @@ function PaystackDepositForm({ userEmail, onSuccess, onCancel, currentBalance }:
                 </CardContent>
                 <CardFooter className="flex-col items-stretch gap-4">
                      <Button 
-                        onClick={() => initializePayment({onSuccess: handlePaymentSuccess, onClose: handleClose})}
+                        onClick={() => initializePayment({onSuccess: handlePaymentSuccess, onClose})}
                         disabled={!isValidAmount()}
                         className="w-full"
                     >
@@ -248,7 +244,7 @@ export default function WalletPage() {
                          <PaystackDepositForm 
                             userEmail={user.email!} 
                             onSuccess={handleDepositSuccess}
-                            onCancel={() => setShowDepositForm(false)}
+                            onClose={() => setShowDepositForm(false)}
                             currentBalance={userProfile?.wallet_balance || 0}
                         />
                     )}
