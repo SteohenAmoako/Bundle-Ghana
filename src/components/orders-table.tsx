@@ -33,34 +33,40 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "./ui/badge"
-import type { Order } from "@/lib/definitions"
+import type { Transaction } from "@/lib/definitions"
+import { NETWORKS } from "@/lib/networks"
 
-const columns: ColumnDef<Order>[] = [
+const networkMap = new Map(NETWORKS.map(n => [n.id, n.name]));
+
+const columns: ColumnDef<Transaction>[] = [
   {
-    accessorKey: "transactionCode",
+    accessorKey: "transaction_code",
     header: "Transaction Code",
-    cell: ({ row }) => <div>{row.getValue("transactionCode")}</div>,
+    cell: ({ row }) => <div>{row.getValue("transaction_code")}</div>,
   },
   {
-    accessorKey: "recipientMsisdn",
+    accessorKey: "recipient_msisdn",
     header: "Recipient",
-    cell: ({ row }) => <div>{row.getValue("recipientMsisdn")}</div>,
+    cell: ({ row }) => <div>{row.getValue("recipient_msisdn") || 'N/A'}</div>,
   },
   {
-    accessorKey: "network",
+    accessorKey: "network_id",
     header: "Network",
-    cell: ({ row }) => <div>{row.getValue("network")}</div>,
-  },
-  {
-    accessorKey: "bundle",
-    header: "Bundle",
-    cell: ({ row }) => <div>{row.getValue("bundle")}</div>,
-  },
-  {
-    accessorKey: "price",
-    header: () => <div className="text-right">Price</div>,
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("price"))
+        const networkId = row.getValue("network_id") as number;
+        return <div>{networkMap.get(networkId) || 'N/A'}</div>;
+    },
+  },
+  {
+    accessorKey: "bundle_amount",
+    header: "Bundle",
+    cell: ({ row }) => <div>{row.getValue("bundle_amount") || 'N/A'}</div>,
+  },
+  {
+    accessorKey: "amount",
+    header: () => <div className="text-right">Amount</div>,
+    cell: ({ row }) => {
+      const amount = parseFloat(row.getValue("amount"))
       const formatted = new Intl.NumberFormat("en-GH", {
         style: "currency",
         currency: "GHS",
@@ -69,7 +75,7 @@ const columns: ColumnDef<Order>[] = [
     },
   },
   {
-    accessorKey: "date",
+    accessorKey: "created_at",
     header: ({ column }) => {
       return (
         <Button
@@ -81,15 +87,16 @@ const columns: ColumnDef<Order>[] = [
         </Button>
       )
     },
-    cell: ({ row }) => <div>{format(new Date(row.getValue("date")), "dd/MM/yyyy, hh:mm:ss a")}</div>,
+    cell: ({ row }) => <div>{format(new Date(row.getValue("created_at")), "dd/MM/yyyy, hh:mm:ss a")}</div>,
   },
   {
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
         const status = row.getValue("status") as string;
+        const variant = status.toLowerCase() === 'success' ? 'success' : 'destructive';
         return (
-            <Badge variant={status === 'Completed' ? 'success' : 'destructive'}>
+            <Badge variant={variant}>
                 {status}
             </Badge>
         )
@@ -97,9 +104,9 @@ const columns: ColumnDef<Order>[] = [
   },
 ]
 
-export function OrdersTable({ data }: { data: Order[] }) {
+export function OrdersTable({ data, onRefresh }: { data: Transaction[], onRefresh?: () => void }) {
   const [sorting, setSorting] = React.useState<SortingState>([
-    { id: 'date', desc: true }
+    { id: 'created_at', desc: true }
   ])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] =
@@ -130,17 +137,19 @@ export function OrdersTable({ data }: { data: Order[] }) {
       <div className="flex items-center py-4 gap-2">
         <Input
           placeholder="Filter by phone number..."
-          value={(table.getColumn("recipientMsisdn")?.getFilterValue() as string) ?? ""}
+          value={(table.getColumn("recipient_msisdn")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("recipientMsisdn")?.setFilterValue(event.target.value)
+            table.getColumn("recipient_msisdn")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm">
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh
-            </Button>
+            {onRefresh && (
+                <Button variant="outline" size="sm" onClick={onRefresh}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Refresh
+                </Button>
+            )}
             <Button variant="outline" size="sm">
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
@@ -165,7 +174,7 @@ export function OrdersTable({ data }: { data: Order[] }) {
                         column.toggleVisibility(!!value)
                         }
                     >
-                        {column.id}
+                        {column.id.replace(/_/g, ' ')}
                     </DropdownMenuCheckboxItem>
                     )
                 })}
@@ -217,7 +226,7 @@ export function OrdersTable({ data }: { data: Order[] }) {
                     colSpan={columns.length}
                     className="h-24 text-center"
                     >
-                    No results.
+                    No transactions found.
                     </TableCell>
                 </TableRow>
                 )}

@@ -26,7 +26,7 @@ export interface CartItem {
 }
 
 // This type now matches the `transactions` table in your SQL schema.
-export interface Transaction {
+export type Transaction = {
     id: string;
     user_id: string;
     transaction_code: string | null;
@@ -41,18 +41,9 @@ export interface Transaction {
     balance_before: number | null;
     balance_after: number | null;
     created_at: string;
-}
+};
 
 /**
  * @deprecated The Order type is deprecated. Use Transaction instead.
  */
-export type Order = {
-    id: string;
-    transactionCode: string;
-    recipientMsisdn: string;
-    network: NetworkName;
-    bundle: string;
-    price: number;
-    date: string;
-    status: 'Completed' | 'Failed';
-};
+export type Order = Transaction;

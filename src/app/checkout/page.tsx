@@ -9,54 +9,19 @@ import { Info, Wallet, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import PaystackButton from "@/components/paystack-button";
 import { useAuth } from "@/context/auth-context";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 
 export default function CheckoutPage() {
     const { cartItems, totalPrice, clearCart } = useCart();
-    const { user, loading: authLoading } = useAuth();
+    const { user, userProfile, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
     
-    const [walletBalance, setWalletBalance] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [isFetchingBalance, setIsFetchingBalance] = useState(true);
 
-    useEffect(() => {
-        const fetchWalletBalance = async () => {
-            if (!user) {
-                setIsFetchingBalance(false);
-                return;
-            };
-
-            setIsFetchingBalance(true);
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('wallet_balance')
-                .eq('id', user.id)
-                .single();
-
-            if (error) {
-                console.error("Error fetching wallet balance:", error);
-                toast({
-                    title: "Error",
-                    description: "Could not fetch wallet balance.",
-                    variant: "destructive",
-                });
-            } else {
-                setWalletBalance(data.wallet_balance);
-            }
-            setIsFetchingBalance(false);
-        };
-
-        if (!authLoading) {
-            fetchWalletBalance();
-        }
-    }, [user, authLoading, toast]);
-
-
+    const walletBalance = userProfile?.wallet_balance ?? 0;
     const isSufficient = walletBalance >= totalPrice;
 
     const handlePayWithWallet = async () => {
@@ -105,21 +70,7 @@ export default function CheckoutPage() {
         setIsProcessing(false);
     }
 
-    const handlePaystackSuccess = (reference: any) => {
-        // This flow will now be handled on the wallet page. 
-        // User should deposit first, then come back to checkout.
-        toast({
-            title: "Deposit Successful",
-            description: "Your wallet has been credited. You can now complete the purchase.",
-        });
-        router.push('/wallet?redirect=/checkout');
-    };
-
-    const handlePaystackClose = () => {
-        console.log("Paystack dialog closed.");
-    };
-
-    if (authLoading || isFetchingBalance) {
+    if (authLoading) {
          return <div className="text-center p-12">Loading...</div>
     }
 
