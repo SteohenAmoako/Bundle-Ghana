@@ -11,7 +11,6 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
 import { useState } from "react";
-import { supabase } from "@/lib/supabase/client";
 
 export default function CheckoutPage() {
     const { cartItems, totalPrice, clearCart } = useCart();
@@ -37,19 +36,22 @@ export default function CheckoutPage() {
         setIsProcessing(true);
 
         for (const item of cartItems) {
-             const { error } = await supabase.rpc('purchase_bundle_and_log_transaction', {
-                p_user_id: user.id,
-                p_amount: item.price,
-                p_transaction_code: `PUR-${Date.now()}`, 
-                p_status: 'success', // This should be updated based on actual API call result
-                p_recipient_msisdn: item.recipientMsisdn,
-                p_network_id: item.networkId,
-                p_shared_bundle: item.sharedBundle,
-                p_bundle_amount: item.dataAmount,
-                p_description: `Purchase of ${item.dataAmount} for ${item.recipientMsisdn}`
-            });
+            try {
+                const response = await fetch('/api/buy-bundle', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(item),
+                });
 
-            if (error) {
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to purchase bundle');
+                }
+
+            } catch (error: any) {
                 console.error("Purchase error for item:", item.cartId, error);
                 toast({
                     title: "Purchase Failed",

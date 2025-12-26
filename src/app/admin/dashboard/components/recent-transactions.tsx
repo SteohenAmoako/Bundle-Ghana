@@ -6,10 +6,10 @@ import { ArrowUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
-import { Badge } from './ui/badge';
+import { Badge } from '@/components/ui/badge';
 import type { Transaction } from '@/lib/definitions';
 import { NETWORKS } from '@/lib/networks';
-import { DataTable } from './ui/data-table';
+import { DataTable } from '@/components/ui/data-table';
 
 const networkMap = new Map(NETWORKS.map((n) => [n.id, n.name]));
 
@@ -77,6 +77,6 @@ const columns: ColumnDef<Transaction>[] = [
   },
 ];
 
-export function OrdersTable({ data, onRefresh }: { data: Transaction[]; onRefresh?: () => void }) {
+export function RecentTransactions({ data, onRefresh }: { data: Transaction[]; onRefresh?: () => void }) {
   return <DataTable columns={columns} data={data} onRefresh={onRefresh} filterColumn="recipient_msisdn" />;
 }

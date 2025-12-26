@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -19,6 +20,7 @@ export type Profile = {
   api_key: string;
   wallet_balance: number;
   updated_at: string;
+  is_admin: boolean;
 }
 
 export type AuthContextType = {

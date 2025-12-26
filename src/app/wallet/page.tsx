@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -19,8 +18,9 @@ import { AnimatePresence, motion } from "framer-motion";
 
 interface PaystackDepositFormProps {
     userEmail: string;
-    onSuccess: (details: { amount: number, reference: string }) => void;
+    onSuccess: (details: any) => void;
     onClose: () => void;
+    currentBalance: number;
 }
 
 function PaystackDepositForm({ userEmail, onSuccess, onClose }: PaystackDepositFormProps) {
@@ -29,16 +29,7 @@ function PaystackDepositForm({ userEmail, onSuccess, onClose }: PaystackDepositF
 
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
 
-    const config = useMemo(() => ({
-        email: userEmail,
-        amount: Math.round(parseFloat(amount || '0') * 100),
-        publicKey,
-        currency: 'GHS',
-        reference: (new Date()).getTime().toString(),
-    }), [userEmail, amount, publicKey]);
-
-    const initializePayment = usePaystackPayment(config);
-
+    // Callback handlers
     const handlePaymentSuccess = useCallback((reference: any) => {
         try {
             const paymentDetails = {
@@ -56,6 +47,30 @@ function PaystackDepositForm({ userEmail, onSuccess, onClose }: PaystackDepositF
             });
         }
     }, [amount, onSuccess, toast]);
+
+    const handlePaymentClose = useCallback(() => {
+        console.log('Payment popup closed');
+        // Don't close the form here, let user decide
+    }, []);
+
+    // Configuration for Paystack
+    const config = useMemo(() => ({
+        email: userEmail,
+        amount: Math.round(parseFloat(amount || '0') * 100),
+        publicKey,
+        currency: 'GHS',
+        reference: `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    }), [userEmail, amount, publicKey]);
+
+    // Initialize the payment hook
+    const initializePayment = usePaystackPayment(config);
+
+    const handleProceedToPayment = () => {
+        if (!isValidAmount()) return;
+        
+        // Call initializePayment with callback functions
+        initializePayment(handlePaymentSuccess, handlePaymentClose);
+    };
 
     const isValidAmount = () => {
         const numAmount = parseFloat(amount);
@@ -119,7 +134,7 @@ function PaystackDepositForm({ userEmail, onSuccess, onClose }: PaystackDepositF
                 </CardContent>
                 <CardFooter className="flex-col items-stretch gap-4">
                      <Button 
-                        onClick={() => initializePayment({onSuccess: handlePaymentSuccess, onClose})}
+                        onClick={handleProceedToPayment}
                         disabled={!isValidAmount()}
                         className="w-full"
                     >
@@ -244,6 +259,7 @@ export default function WalletPage() {
                             userEmail={user.email!} 
                             onSuccess={handleDepositSuccess}
                             onClose={() => setShowDepositForm(false)}
+                            currentBalance={userProfile?.wallet_balance || 0}
                         />
                     )}
                     </AnimatePresence>
@@ -287,6 +303,3 @@ export default function WalletPage() {
         </div>
     );
 }
-
-    
-

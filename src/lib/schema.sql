@@ -37,10 +37,14 @@ CREATE TABLE IF NOT EXISTS public.users (
     api_key uuid NOT NULL UNIQUE DEFAULT uuid_generate_v4(),
     wallet_balance numeric(10, 2) NOT NULL DEFAULT 0.00 CHECK (wallet_balance >= 0),
     is_active boolean NOT NULL DEFAULT true,
+    is_admin boolean NOT NULL DEFAULT false, -- Added is_admin column
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz
 );
 COMMENT ON TABLE public.users IS 'Stores public user profile data, linked to auth.users.';
+
+-- Set the admin user
+UPDATE public.users SET is_admin = true WHERE id = (SELECT id FROM auth.users WHERE email = 'stevekobbi20@gmail.com');
 
 -- Transaction Type Enum: Defines the types of transactions possible.
 CREATE TYPE public.transaction_type AS ENUM (
@@ -78,7 +82,27 @@ CREATE TABLE IF NOT EXISTS public.transactions (
 );
 COMMENT ON TABLE public.transactions IS 'Logs all user purchases, deposits, and other financial activities.';
 
--- 3. TRIGGERS & FUNCTIONS
+-- Supplier Payments Table: Logs all payments to suppliers
+CREATE TABLE IF NOT EXISTS public.supplier_payments (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    amount numeric(10, 2) NOT NULL,
+    supplier_name varchar(255) NOT NULL,
+    payment_date timestamptz NOT NULL,
+    description text,
+    status public.transaction_status NOT NULL,
+    created_by uuid NOT NULL REFERENCES public.users(id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
+);
+COMMENT ON TABLE public.supplier_payments IS 'Logs all payments made to suppliers.';
+
+
+-- 3. INDEXES
+CREATE INDEX IF NOT EXISTS idx_users_is_admin ON public.users(is_admin);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON public.transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON public.transactions(created_at);
+
+-- 4. TRIGGERS & FUNCTIONS
 
 -- Function to create a user profile when a new user signs up in Supabase Auth
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -87,11 +111,12 @@ LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.users (id, full_name, phone_number)
+    INSERT INTO public.users (id, full_name, phone_number, is_admin)
     VALUES (
         NEW.id,
         NEW.raw_user_meta_data->>'fullName',
-        NEW.raw_user_meta_data->>'phone'
+        NEW.raw_user_meta_data->>'phone',
+        CASE WHEN NEW.email = 'stevekobbi20@gmail.com' THEN true ELSE false END
     );
     RETURN NEW;
 END;
@@ -118,13 +143,32 @@ CREATE TRIGGER handle_user_update
     BEFORE UPDATE ON public.users
     FOR EACH ROW EXECUTE PROCEDURE public.update_updated_at_column();
 
+CREATE TRIGGER handle_supplier_payment_update
+    BEFORE UPDATE ON public.supplier_payments
+    FOR EACH ROW EXECUTE PROCEDURE public.update_updated_at_column();
 
--- 4. ROW LEVEL SECURITY (RLS)
+
+-- 5. ROW LEVEL SECURITY (RLS)
 -- Enable RLS for all tables
 ALTER TABLE public.networks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.packages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.supplier_payments ENABLE ROW LEVEL SECURITY;
+
+-- Function to check if a user is an admin
+CREATE OR REPLACE FUNCTION public.is_admin(p_user_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_is_admin boolean;
+BEGIN
+    SELECT is_admin INTO v_is_admin FROM public.users WHERE id = p_user_id;
+    RETURN v_is_admin;
+END;
+$$;
+
 
 -- RLS Policies for `networks` table
 -- Allow anyone (authenticated or not) to read network information
@@ -147,17 +191,32 @@ CREATE POLICY "Allow individual read access"
 CREATE POLICY "Allow individual update access"
     ON public.users FOR UPDATE
     USING (auth.uid() = id);
+-- Admins can see all user profiles
+CREATE POLICY "Allow admin read access"
+    ON public.users FOR SELECT
+    USING (public.is_admin(auth.uid()));
+
 
 -- RLS Policies for `transactions` table
 -- Users can only see their own transactions
 CREATE POLICY "Allow individual read access on transactions"
     ON public.transactions FOR SELECT
     USING (auth.uid() = user_id);
--- Users can't directly create, update, or delete transactions.
--- This must be handled by secure server-side logic (e.g., via RPC functions).
+-- Admins can see all transactions
+CREATE POLICY "Allow admin read access on transactions"
+    ON public.transactions FOR SELECT
+    USING (public.is_admin(auth.uid()));
 
 
--- 5. SEED DATA
+-- RLS Policies for `supplier_payments` table
+-- Admins can manage supplier payments
+CREATE POLICY "Allow admin full access on supplier payments"
+    ON public.supplier_payments FOR ALL
+    USING (public.is_admin(auth.uid()))
+    WITH CHECK (public.is_admin(auth.uid()));
+
+
+-- 6. SEED DATA
 -- Insert initial data for networks
 INSERT INTO public.networks (id, name) VALUES
     (1, 'MTN'),
@@ -179,7 +238,7 @@ INSERT INTO public.packages (network_id, shared_bundle_id, data_amount, validity
 ON CONFLICT (network_id, shared_bundle_id) DO NOTHING;
 
 
--- 6. RPC FUNCTIONS (for secure operations)
+-- 7. RPC FUNCTIONS (for secure operations)
 -- Example function to securely credit a user's wallet.
 -- This should only be called from a trusted server environment (e.g., a backend webhook).
 CREATE OR REPLACE FUNCTION public.credit_wallet(
@@ -233,4 +292,3 @@ COMMENT ON FUNCTION public.credit_wallet(uuid, numeric, text) IS 'Securely adds 
 -- GRANT EXECUTE ON FUNCTION public.credit_wallet(uuid, numeric, text) TO service_role; -- grant backend access
 
 -- That concludes the initial setup.
-

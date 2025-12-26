@@ -79,6 +79,14 @@ function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {user.email === 'stevekobbi20@gmail.com' && (
+          <DropdownMenuItem asChild>
+            <Link href="/admin/dashboard">
+              <User className="mr-2 h-4 w-4" />
+              <span>Dashboard</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href="/profile">
             <User className="mr-2 h-4 w-4" />
@@ -119,6 +127,7 @@ function WalletBalance() {
 }
 
 export function Header() {
+  const { user } = useAuth();
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 max-w-6xl items-center">
@@ -151,6 +160,14 @@ export function Header() {
                     {link.label}
                   </Link>
                 ))}
+                {user?.email === 'stevekobbi20@gmail.com' && (
+                    <Link
+                        href="/admin/dashboard"
+                        className="text-lg font-medium text-foreground/70 hover:text-foreground"
+                    >
+                        Dashboard
+                    </Link>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
@@ -170,6 +187,14 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
+             {user?.email === 'stevekobbi20@gmail.com' && (
+              <Link
+                href="/admin/dashboard"
+                className="font-medium text-foreground/70 transition-colors hover:text-foreground"
+              >
+                Dashboard
+              </Link>
+            )}
           </nav>
           <div className="flex items-center gap-4 ml-auto md:ml-0 flex-none">
             <AuthComponents>
