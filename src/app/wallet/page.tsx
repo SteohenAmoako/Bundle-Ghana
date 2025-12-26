@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +19,8 @@ import { AnimatePresence, motion } from "framer-motion";
 
 interface PaystackDepositFormProps {
     userEmail: string;
-    onSuccess: (details: any) => void;
+    onSuccess: (details: { amount: number, reference: string }) => void;
     onClose: () => void;
-    currentBalance: number;
 }
 
 function PaystackDepositForm({ userEmail, onSuccess, onClose }: PaystackDepositFormProps) {
@@ -245,7 +244,6 @@ export default function WalletPage() {
                             userEmail={user.email!} 
                             onSuccess={handleDepositSuccess}
                             onClose={() => setShowDepositForm(false)}
-                            currentBalance={userProfile?.wallet_balance || 0}
                         />
                     )}
                     </AnimatePresence>
@@ -291,3 +289,4 @@ export default function WalletPage() {
 }
 
     
+
