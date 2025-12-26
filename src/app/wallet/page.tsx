@@ -2,38 +2,34 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PageHeader } from "@/components/page-header";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle, Info } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { PlusCircle, Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle, Info, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { PaystackButton as ReactPaystackButton } from 'react-paystack';
+import { usePaystackPayment } from 'react-paystack';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/auth-context';
 import { supabase } from '@/lib/supabase/client';
 import type { Transaction } from '@/lib/definitions';
+import { AnimatePresence, motion } from "framer-motion";
 
 interface PaystackDepositFormProps {
     userEmail: string;
     onSuccess: (details: any) => void;
-    onCloseDialog: () => void;
+    onCancel: () => void;
     currentBalance: number;
 }
 
-function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDialog }: PaystackDepositFormProps) {
+function PaystackDepositForm({ userEmail, onSuccess, onCancel, currentBalance }: PaystackDepositFormProps) {
     const [amount, setAmount] = useState('');
     const { toast } = useToast();
-    const processingRef = useRef(false);
 
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
 
     const handlePaymentSuccess = useCallback((reference: any) => {
-        if (processingRef.current) return;
-        processingRef.current = true;
-
         try {
             const paymentDetails = {
                 reference: reference.reference,
@@ -41,16 +37,6 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
             };
             onSuccess(paymentDetails);
             setAmount('');
-            toast({
-                title: "Deposit Successful!",
-                description: `${amount} GHS has been added to your wallet.`
-            });
-            
-            onCloseDialog();
-            
-            setTimeout(() => {
-                processingRef.current = false;
-            }, 2000);
         } catch (error) {
             console.error('Error processing deposit:', error);
             toast({
@@ -58,24 +44,22 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
                 description: "There was an error processing your deposit. Please contact support.",
                 variant: "destructive"
             });
-            processingRef.current = false;
         }
-    }, [amount, onSuccess, onCloseDialog, toast]);
+    }, [amount, onSuccess, toast]);
     
     const handleClose = useCallback(() => {
-        console.log('Paystack dialog closed.');
-        processingRef.current = false;
+        console.log('Paystack dialog closed by user.');
+        // onCancel is called from the component props
     }, []);
 
-    const componentProps = useMemo(() => ({
+    const config = useMemo(() => ({
         email: userEmail,
         amount: Math.round(parseFloat(amount || '0') * 100),
         publicKey,
-        text: "Deposit Money",
-        onSuccess: (ref: any) => handlePaymentSuccess(ref),
-        onClose: handleClose,
         currency: 'GHS',
-    }), [userEmail, amount, publicKey, handlePaymentSuccess, handleClose]);
+    }), [userEmail, amount, publicKey]);
+
+    const initializePayment = usePaystackPayment(config);
 
     const isValidAmount = () => {
         const numAmount = parseFloat(amount);
@@ -95,74 +79,75 @@ function PaystackDepositForm({ userEmail, onSuccess, currentBalance, onCloseDial
     }
 
     return (
-        <div className="grid gap-6">
-            <Card className="bg-accent/10 border-accent/30">
+        <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+        >
+            <Card>
                 <CardHeader>
-                    <CardTitle className='text-accent'>Current Balance</CardTitle>
+                    <div className="flex justify-between items-center">
+                        <CardTitle>Add Money to Wallet</CardTitle>
+                        <Button variant="ghost" size="icon" onClick={onCancel}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <CardDescription>Enter an amount to deposit via our secure payment gateway.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <p className="text-3xl font-bold text-accent">
-                        GHS {currentBalance?.toFixed(2) || '0.00'}
-                    </p>
+                <CardContent className="grid gap-6">
+                     <div className="grid gap-2">
+                        <Label htmlFor="amount">Amount to Deposit (GHS)</Label>
+                        <Input
+                            id="amount"
+                            type="number"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            placeholder="Enter amount (min: 1 GHS)"
+                            min="1"
+                            step="0.01"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Minimum deposit: 1 GHS
+                        </p>
+                    </div>
+                     {amount && isValidAmount() && (
+                        <Alert variant="default" className="bg-success/10 border-success/30">
+                            <AlertTitle className='text-success'>Payment Preview</AlertTitle>
+                            <AlertDescription className="flex justify-between items-center text-foreground">
+                                <span>You will pay:</span>
+                                <span className="font-bold text-lg">GHS {parseFloat(amount).toFixed(2)}</span>
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </CardContent>
-            </Card>
-
-            <div className="grid gap-2">
-                <Label htmlFor="amount">Amount to Deposit (GHS)</Label>
-                <Input
-                    id="amount"
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="Enter amount (min: 1 GHS)"
-                    min="1"
-                    step="0.01"
-                />
-                <p className="text-xs text-muted-foreground">
-                    Minimum deposit: 1 GHS
-                </p>
-            </div>
-
-            {amount && isValidAmount() && (
-                <Alert variant="default" className="bg-success/10 border-success/30">
-                    <AlertTitle className='text-success'>Payment Preview</AlertTitle>
-                    <AlertDescription className="flex justify-between items-center text-foreground">
-                        <span>You will pay:</span>
-                        <span className="font-bold text-lg">GHS {parseFloat(amount).toFixed(2)}</span>
-                    </AlertDescription>
-                </Alert>
-            )}
-
-            <div className="mt-4">
-                 {isValidAmount() ? (
-                    <ReactPaystackButton {...componentProps} className={cn(buttonVariants(), "w-full")} />
-                ) : (
-                    <Button disabled className="w-full">
-                        Enter a valid amount
+                <CardFooter className="flex-col items-stretch gap-4">
+                     <Button 
+                        onClick={() => initializePayment({onSuccess: handlePaymentSuccess, onClose: handleClose})}
+                        disabled={!isValidAmount()}
+                        className="w-full"
+                    >
+                        Proceed to Payment
                     </Button>
-                )}
-            </div>
-            
-            <Card className="mt-4 bg-muted/50">
-                <CardHeader>
-                    <CardTitle className="text-base">Payment Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <ul className="text-sm text-muted-foreground space-y-2">
-                        <li className='flex items-center gap-2'>✓ Secure payment via Paystack</li>
-                        <li className='flex items-center gap-2'>✓ Accept all major cards & Mobile Money</li>
-                        <li className='flex items-center gap-2'>✓ Instant wallet credit</li>
-                    </ul>
-                </CardContent>
+                     <Card className="bg-muted/50">
+                        <CardContent className="p-3">
+                            <ul className="text-xs text-muted-foreground space-y-1">
+                                <li className='flex items-center gap-2'>✓ Secure payment via Paystack</li>
+                                <li className='flex items-center gap-2'>✓ Supports Cards & Mobile Money</li>
+                                <li className='flex items-center gap-2'>✓ Instant wallet credit</li>
+                            </ul>
+                        </CardContent>
+                    </Card>
+                </CardFooter>
             </Card>
-        </div>
+        </motion.div>
     );
 }
 
 export default function WalletPage() {
     const { user, loading, refreshUser, userProfile } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [showDepositForm, setShowDepositForm] = useState(false);
     const { toast } = useToast();
 
     const fetchTransactions = useCallback(async () => {
@@ -205,14 +190,15 @@ export default function WalletPage() {
             console.error('Error updating balance:', error);
             toast({ title: 'Error', description: 'Failed to update wallet balance.', variant: 'destructive'});
         } else {
+            toast({
+                title: "Deposit Successful!",
+                description: `GHS ${paymentDetails.amount.toFixed(2)} has been added to your wallet.`
+            });
             if(refreshUser) refreshUser();
             fetchTransactions();
+            setShowDepositForm(false);
         }
     };
-
-    const handleCloseDialog = useCallback(() => {
-        setIsDialogOpen(false);
-    }, []);
 
     if (loading) {
         return (
@@ -238,7 +224,7 @@ export default function WalletPage() {
             />
 
             <div className="mt-8 grid gap-8 md:grid-cols-3">
-                <div className="md:col-span-1">
+                <div className="md:col-span-1 space-y-8">
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg text-muted-foreground">
@@ -250,29 +236,23 @@ export default function WalletPage() {
                             <p className="text-4xl font-bold">GHS {userProfile?.wallet_balance?.toFixed(2) || '0.00'}</p>
                         </CardContent>
                         <CardFooter>
-                            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button className="w-full">
-                                        <PlusCircle className="mr-2 h-4 w-4" /> Add Money
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="sm:max-w-md">
-                                    <DialogHeader>
-                                        <DialogTitle>Add Money to Your Wallet</DialogTitle>
-                                        <DialogDescription>
-                                            Enter an amount and complete the payment to top up your balance.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <PaystackDepositForm 
-                                        userEmail={user.email!} 
-                                        onSuccess={handleDepositSuccess}
-                                        currentBalance={userProfile?.wallet_balance || 0}
-                                        onCloseDialog={handleCloseDialog}
-                                    />
-                                </DialogContent>
-                            </Dialog>
+                            <Button className="w-full" onClick={() => setShowDepositForm(true)} disabled={showDepositForm}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add Money
+                            </Button>
                         </CardFooter>
                     </Card>
+                    
+                    <AnimatePresence>
+                    {showDepositForm && (
+                         <PaystackDepositForm 
+                            userEmail={user.email!} 
+                            onSuccess={handleDepositSuccess}
+                            onCancel={() => setShowDepositForm(false)}
+                            currentBalance={userProfile?.wallet_balance || 0}
+                        />
+                    )}
+                    </AnimatePresence>
+
                 </div>
                 <div className="md:col-span-2">
                     <Card>
@@ -285,7 +265,7 @@ export default function WalletPage() {
                                 {transactions.length > 0 ? transactions.map((tx) => (
                                     <div key={tx.id} className="flex items-center py-4">
                                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                                            {tx.transaction_type === 'deposit' ? 
+                                            {tx.amount > 0 ? 
                                                 <ArrowDownCircle className="h-5 w-5 text-success" /> : 
                                                 <ArrowUpCircle className="h-5 w-5 text-destructive" />
                                             }
